@@ -11,17 +11,17 @@ if st.sidebar.button("Reset All Filters"):
     st.session_state.clear()
     st.rerun()
 
-# Custom CSS to change all red accents in the sidebar to blue
+# Custom CSS to change red accents to blue while keeping the dark gray sidebar background
 st.markdown("""
     <style>
-    /* Primary blue theme for sidebar accents */
+    /* Keep the default dark gray sidebar background */
     section[data-testid="stSidebar"] {
-        background-color: #0E1117;
+        background-color: #0E1117 !important;
     }
     
-    /* Buttons (Reset All Filters) */
+    /* Reset button - blue */
     div.stButton > button {
-        background-color: #1E40AF !important;
+        background-color: #3B82F6 !important;
         color: white !important;
         border: none !important;
     }
@@ -29,30 +29,35 @@ st.markdown("""
         background-color: #2563EB !important;
     }
     
-    /* Slider track and handle (Year Range, etc.) */
+    /* Slider fill/track - blue */
     .stSlider > div > div > div > div {
-        background: #3B82F6 !important;  /* Blue fill */
+        background: #3B82F6 !important;
     }
     .stSlider > div > div > div[role="slider"] {
         background-color: #3B82F6 !important;
         border-color: #2563EB !important;
     }
     
-    /* Multiselect selected tags (Pitcher, Hitter, NESCAC, etc.) */
+    /* Selected multiselect tags (Pitcher, Hitter, NESCAC) - blue */
     .stMultiSelect [data-baseweb="tag"] {
+        background-color: #3B82F6 !important;
+        color: white !important;
+    }
+    
+    /* Selected radio button (All/Top 60) - blue dot */
+    [data-testid="stVerticalBlock"] [kind="primary"][aria-selected="true"] {
         background-color: #3B82F6 !important;
     }
     
-    /* Radio buttons selected (All/Top 60 Academic) */
-    [data-testid="stVerticalBlock"] [kind="primary"][aria-selected="true"] {
-        background-color: #3B82F6 !important;
+    /* Checkbox when checked (Good Players Only) - blue checkmark */
+    div[data-baseweb="checkbox"] > div > svg {
+        color: #3B82F6 !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
 @st.cache_data
 def load_data():
-    # Fixed encoding + suppress low_memory warning
     try:
         pitchers = pd.read_csv('novick_college_pitching_history_all.csv', encoding='latin1', low_memory=False)
     except UnicodeDecodeError:
@@ -64,19 +69,15 @@ def load_data():
     pitchers['role'] = 'Pitcher'
     hitters['role'] = 'Hitter'
     df = pd.concat([pitchers, hitters], ignore_index=True, sort=False)
-    # Critical fixes for sorting/multiselect
-    df['LeagueAbbr'] = df['LeagueAbbr'].astype(str).replace('nan', '') # Fix mixed types + NaN
+    df['LeagueAbbr'] = df['LeagueAbbr'].astype(str).replace('nan', '')
     df['teamName'] = df['teamName'].astype(str).replace('nan', 'Unknown Team')
     df['leagueName'] = df['leagueName'].astype(str).replace('nan', 'Unknown Conference')
-    # State
     df['state'] = df['hsplace'].str.split(',').str[-1].str.strip().str.upper()
     us_states = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']
     df = df[df['state'].isin(us_states)]
-    # Draft cleanup
     df['draft_year'] = pd.to_numeric(df['draft_year'], errors='coerce')
     df['draft_Round'] = pd.to_numeric(df['draft_Round'], errors='coerce').fillna(0)
     df['is_drafted'] = df['draft_year'].notna()
-    # Region mapping (unchanged)
     region_map = {
         'East': ['KY','OH','PA','TN','WV'],
         'Mid Atlantic': ['DE','MD','NJ','NY','VA'],
@@ -92,7 +93,6 @@ def load_data():
                 return r
         return 'Other'
     df['region'] = df['state'].apply(get_region)
-    # T90s and T90/PA — only for hitters
     df['T90s'] = np.nan
     df['T90/PA'] = np.nan
     hitter_mask = df['role'] == 'Hitter'
@@ -102,36 +102,28 @@ def load_data():
         df.loc[hitter_mask, 'T90s'] = (df.loc[hitter_mask, 'TotalBases'] + df.loc[hitter_mask, 'SB'].fillna(0) + df.loc[hitter_mask, 'BB'].fillna(0) + df.loc[hitter_mask, 'HBP'].fillna(0))
         df.loc[hitter_mask, 'PA'] = (df.loc[hitter_mask, 'AB'].fillna(0) + df.loc[hitter_mask, 'BB'].fillna(0) + df.loc[hitter_mask, 'HBP'].fillna(0) + df.loc[hitter_mask, 'SF'].fillna(0) + df.loc[hitter_mask, 'SH'].fillna(0))
         df.loc[hitter_mask, 'T90/PA'] = df.loc[hitter_mask, 'T90s'] / df.loc[hitter_mask, 'PA'].replace(0, np.nan)
-    # Clean Bats/Throws/Position
     df['Bats'] = df['Bats'].str.upper().replace('B', 'S')
     df['Throws'] = df['Throws'].str.upper()
     df['posit'] = df['posit'].str.upper().str.strip()
-    # Miami → Miami-Ohio fix
     df.loc[(df['teamName'] == 'Miami') & (df['LeagueAbbr'] == 'MAC'), 'teamName'] = 'Miami-Ohio'
-    # Conference type
     power = ['Atlantic Coast Conference','Big 12 Conference','Big Ten Conference','Pacific-10 Conference','Pacific-12 Conference','Southeastern Conference']
     low_major = ['Big South Conference','Patriot League','Ivy League','America East Conference','Metro Atlantic Athletic Conference','Northeast Conference','Southwest Athletic Conference','Horizon League']
     df['conference_type'] = 'Mid Major'
     df.loc[df['leagueName'].isin(power), 'conference_type'] = 'Power Conference'
     df.loc[df['leagueName'].isin(low_major), 'conference_type'] = 'Low Major'
-    # Academic School flag
     academic_schools = ['Air Force','Army','Boston College','Brown','Bryant','Bryant University','Bucknell','California','Columbia','Cornell','Dartmouth','Davidson','Davidson College','Duke','Fordham','Georgetown','Georgia Tech','Harvard','Holy Cross','Lafayette','Lafayette College','Lehigh','Maryland','Massachusetts','Michigan','Navy','New Jersey Tech','North Carolina','Northeastern','Northwestern','Notre Dame','Penn','Pennsylvania','Princeton','Purdue','Rice','Richmond','Stanford','Tulane','UC Davis','UC Irvine','UC San Diego','UC Santa Barbara','UCLA','USC','Vanderbilt','Villanova','Virginia','Wake Forest','Washington','William and Mary','Wofford','Yale']
     df['is_academic_school'] = df['teamName'].isin(academic_schools)
     return df
 
 data = load_data()
 
-# Filters
 year_filter = st.sidebar.slider("Year Range", int(data['year'].min()), int(data['year'].max()), (2022, int(data['year'].max())), key="year")
 role_filter = st.sidebar.multiselect("Role", ['Pitcher','Hitter'], default=['Pitcher','Hitter'], key="role")
-# Good Players Only toggle + description
 good_players_only = st.sidebar.checkbox("Good Players Only", key="good_players")
 if good_players_only:
     st.sidebar.caption("Pitchers: IP > 30, WHIP < 1.35 & Hitters: T90/PA > .550")
-   
 league_filter = st.sidebar.multiselect("Conference", sorted(data['LeagueAbbr'].unique()), key="league")
 conference_type_filter = st.sidebar.multiselect("Conference Type", options=['Power Conference', 'Mid Major', 'Low Major'], key="conference_type")
-# NEW: Level filter - right under Conference Type
 level_options = sorted([x for x in data['Level'].astype(str).unique() if x not in ['nan', 'None', '']])
 level_filter = st.sidebar.multiselect("Level", options=level_options, key="level")
 academic_school_filter = st.sidebar.radio("School Academic Level", ["All", "Top 60 Academic"], key="academic_school")
@@ -159,7 +151,6 @@ if stat2 != 'None':
     value2 = st.sidebar.number_input(f"{stat2} value", value=0.0, step=step2, key="val2")
 name_search = st.sidebar.text_input("Search Player Name", key="name_search")
 
-# Base filtering
 filtered = data[
     data['role'].isin(role_filter) &
     data['year'].between(*year_filter) &
@@ -180,7 +171,6 @@ if name_search:
 if conference_type_filter:
     filtered = filtered[filtered['conference_type'].isin(conference_type_filter)]
 
-# NEW: Apply Level filter
 if level_filter:
     filtered = filtered[filtered['Level'].astype(str).isin(level_filter)]
 
@@ -189,35 +179,28 @@ if academic_school_filter == "Top 60 Academic":
 
 filtered = filtered[filtered['draft_Round'].between(*draft_round_range)]
 
-# Good Players Only filter
 if good_players_only:
-    # Hitters: >30 G and T90/PA > 0.550
     hitters_good = (filtered['role'] == 'Hitter') & (filtered['G'] > 30) & (filtered['T90/PA'] > 0.550)
-    # Pitchers: >30 IP and WHIP < 1.35
     pitchers_good = (filtered['role'] == 'Pitcher') & (filtered['IP'] > 30) & (filtered['WHIP'] < 1.35)
     filtered = filtered[hitters_good | pitchers_good]
 
-# Custom stat filters
 if stat1 != 'None' and stat1 in filtered.columns:
     filtered = filtered[filtered[stat1] >= value1] if direction1 == "Greater than or equal to" else filtered[filtered[stat1] <= value1]
 if stat2 != 'None' and stat2 in filtered.columns:
     filtered = filtered[filtered[stat2] >= value2] if direction2 == "Greater than or equal to" else filtered[filtered[stat2] <= value2]
 
-# Column selector
 with st.expander("Columns to show (click to expand)", expanded=False):
     default_cols = ['lastname','firstname','teamName','year','Age','state','LeagueAbbr','experience','G','T90s','OPS','draft_Round','ERA','W','SV','IP','WHIP']
     available_default = [c for c in default_cols if c in filtered.columns]
     cols = st.multiselect("", options=filtered.columns.tolist(), default=available_default, key="cols")
 
-# Export
 csv = filtered.to_csv(index=False).encode('utf-8')
 st.download_button("Export Filtered Data as CSV", data=csv, file_name='college_baseball_filtered.csv', mime='text/csv')
 
 st.subheader(f"Filtered Players – {len(filtered):,} rows")
 st.dataframe(filtered[cols] if cols else filtered.head(100), use_container_width=True, hide_index=True)
 
-# The rest of your code (maps, charts, leaderboards) remains unchanged...
-# (Everything from "# State map" onward is exactly the same as your current version)
+# All charts and leaderboards remain exactly the same (red theme) — copy the rest of your original code here unchanged
 
 # State map
 st.subheader("Hometown Map")
