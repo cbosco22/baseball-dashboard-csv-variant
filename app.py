@@ -111,9 +111,9 @@ if good_players_only:
 league_filter = st.sidebar.multiselect("Conference", sorted(data['LeagueAbbr'].unique()), key="league")
 conference_type_filter = st.sidebar.multiselect("Conference Type", options=['Power Conference', 'Mid Major', 'Low Major'], key="conference_type")
 
-# Level filter - default to NCAA-D3 on initial load (safe default)
+# Level filter - default to NCAA-3 on initial load (safe default)
 level_options = sorted([x for x in data['Level'].astype(str).unique() if x not in ['nan', 'None', '']])
-default_level = ['NCAA-D3'] if 'NCAA-D3' in level_options else []
+default_level = ['NCAA-3'] if 'NCAA-3' in level_options else []
 level_filter = st.sidebar.multiselect("Level", options=level_options, default=default_level, key="level")
 
 academic_school_filter = st.sidebar.radio("School Academic Level", ["All", "Top 60 Academic"], key="academic_school")
