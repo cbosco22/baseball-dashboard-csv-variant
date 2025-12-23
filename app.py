@@ -5,6 +5,24 @@ import numpy as np
 
 st.title("College Baseball Roster Analysis - ALL LEVELS")
 
+# Blue theme for the sidebar filters
+st.set_page_config(page_title="College Baseball - ALL LEVELS", layout="wide")
+st.markdown("""
+    <style>
+    section[data-testid="stSidebar"] {
+        background-color: #0E1117;
+        border-right: 2px solid #1E40AF;  /* Blue accent border */
+    }
+    .css-1d391kg {  /* Sidebar text/labels */
+        color: white;
+    }
+    .stMultiSelect > div > div {
+        background-color: #1E40AF;  /* Blue background for multiselect boxes */
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+
 # Reset button
 st.sidebar.header("Filters")
 if st.sidebar.button("Reset All Filters"):
