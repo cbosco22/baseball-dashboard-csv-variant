@@ -95,7 +95,7 @@ def load_data():
 data = load_data()
 
 # Filters
-year_filter = st.sidebar.slider("Year Range", int(data['year'].min()), int(data['year'].max()), (2015, int(data['year'].max())), key="year")
+year_filter = st.sidebar.slider("Year Range", int(data['year'].min()), int(data['year'].max()), (2022, int(data['year'].max())), key="year")
 role_filter = st.sidebar.multiselect("Role", ['Pitcher','Hitter'], default=['Pitcher','Hitter'], key="role")
 
 # Good Players Only toggle + description
