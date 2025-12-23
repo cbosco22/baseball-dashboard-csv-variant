@@ -33,6 +33,10 @@ def load_data():
     df['teamName'] = df['teamName'].astype(str).replace('nan', 'Unknown Team')
     df['leagueName'] = df['leagueName'].astype(str).replace('nan', 'Unknown Conference')
 
+    # NEW: Clean the level column for safe sorting (change 'level' if your column name is different)
+    if 'level' in df.columns:
+        df['level'] = df['level'].astype(str).replace('nan', 'Unknown').str.strip()
+
     # State
     df['state'] = df['hsplace'].str.split(',').str[-1].str.strip().str.upper()
     us_states = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']
@@ -60,9 +64,6 @@ def load_data():
         return 'Other'
     df['region'] = df['state'].apply(get_region)
 
-    # Rest of your original code (T90s, cleaning, conference type, etc.) stays EXACTLY the same
-    # ... (copy everything from your original load_data() below this point)
-    
     # T90s and T90/PA — only for hitters
     df['T90s'] = np.nan
     df['T90/PA'] = np.nan
@@ -98,7 +99,7 @@ def load_data():
 data = load_data()
 
 # Filters
-year_filter = st.sidebar.slider("Year Range", int(data['year'].min()), int(data['year'].max()), (2015, int(data['year'].max())), key="year")
+year_filter = st.sidebar.slider("Year Range", int(data['year'].min()), int(data['year'].max()), (2021, int(data['year'].max())), key="year")
 role_filter = st.sidebar.multiselect("Role", ['Pitcher','Hitter'], default=['Pitcher','Hitter'], key="role")
 
 # Good Players Only toggle + description
@@ -108,6 +109,12 @@ if good_players_only:
     
 league_filter = st.sidebar.multiselect("Conference", sorted(data['LeagueAbbr'].unique()), key="league")
 conference_type_filter = st.sidebar.multiselect("Conference Type", options=['Power Conference', 'Mid Major', 'Low Major'], key="conference_type")
+
+# NEW: Level filter - placed right under Conference Type
+# Change 'level' to your exact column name if different (case-sensitive)
+level_options = sorted([x for x in data['level'].unique() if x not in ['nan', 'Unknown', '']])
+level_filter = st.sidebar.multiselect("Level", options=level_options, key="level")
+
 academic_school_filter = st.sidebar.radio("School Academic Level", ["All", "Top 60 Academic"], key="academic_school")
 team_filter = st.sidebar.multiselect("Team", sorted(data['teamName'].unique()), key="team")
 state_filter = st.sidebar.multiselect("State", sorted(data['state'].unique()), key="state")
@@ -138,7 +145,6 @@ if stat2 != 'None':
 
 name_search = st.sidebar.text_input("Search Player Name", key="name_search")
 
-
 # Base filtering
 filtered = data[
     data['role'].isin(role_filter) &
@@ -159,6 +165,11 @@ if name_search:
 
 if conference_type_filter:
     filtered = filtered[filtered['conference_type'].isin(conference_type_filter)]
+
+# NEW: Apply Level filter
+if level_filter:
+    filtered = filtered[filtered['level'].isin(level_filter)]
+
 if academic_school_filter == "Top 60 Academic":
     filtered = filtered[filtered['is_academic_school']]
 
@@ -191,6 +202,9 @@ st.download_button("Export Filtered Data as CSV", data=csv, file_name='college_b
 st.subheader(f"Filtered Players – {len(filtered):,} rows")
 st.dataframe(filtered[cols] if cols else filtered.head(100), use_container_width=True, hide_index=True)
 
+# The rest of your code (maps, charts, leaderboards) remains EXACTLY the same below...
+# (Copy-paste everything from "# State map" to the end of your original file here)
+
 # State map
 st.subheader("Hometown Map")
 if not filtered.empty:
@@ -202,7 +216,6 @@ if not filtered.empty:
 
 # Players by State — Top States descending, schools sorted, % next to state
 st.subheader("Players by State")
-
 if filtered.empty:
     st.write("No data matches current filters.")
 else:
