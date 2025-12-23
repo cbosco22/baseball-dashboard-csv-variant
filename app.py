@@ -11,14 +11,9 @@ if st.sidebar.button("Reset All Filters"):
     st.session_state.clear()
     st.rerun()
 
-# Custom CSS to change red accents to blue while keeping the dark gray sidebar background
+# Minimal CSS - only changes red accents to blue, keeps original dark gray sidebar
 st.markdown("""
     <style>
-    /* Keep the default dark gray sidebar background */
-    section[data-testid="stSidebar"] {
-        background-color: #0E1117 !important;
-    }
-    
     /* Reset button - blue */
     div.stButton > button {
         background-color: #3B82F6 !important;
@@ -28,34 +23,30 @@ st.markdown("""
     div.stButton > button:hover {
         background-color: #2563EB !important;
     }
-    
+
     /* Slider fill/track - blue */
     .stSlider > div > div > div > div {
         background: #3B82F6 !important;
     }
-    .stSlider > div > div > div[role="slider"] {
-        background-color: #3B82F6 !important;
-        border-color: #2563EB !important;
-    }
-    
-    /* Selected multiselect tags (Pitcher, Hitter, NESCAC) - blue */
+
+    /* Selected multiselect tags - blue */
     .stMultiSelect [data-baseweb="tag"] {
         background-color: #3B82F6 !important;
-        color: white !important;
     }
-    
-    /* Selected radio button (All/Top 60) - blue dot */
+
+    /* Selected radio button dot - blue */
     [data-testid="stVerticalBlock"] [kind="primary"][aria-selected="true"] {
         background-color: #3B82F6 !important;
     }
-    
-    /* Checkbox when checked (Good Players Only) - blue checkmark */
+
+    /* Checkbox checkmark - blue */
     div[data-baseweb="checkbox"] > div > svg {
         color: #3B82F6 !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
+# The rest of your code is EXACTLY the same as your last version - no other changes
 @st.cache_data
 def load_data():
     try:
@@ -200,8 +191,7 @@ st.download_button("Export Filtered Data as CSV", data=csv, file_name='college_b
 st.subheader(f"Filtered Players – {len(filtered):,} rows")
 st.dataframe(filtered[cols] if cols else filtered.head(100), use_container_width=True, hide_index=True)
 
-# All charts and leaderboards remain exactly the same (red theme) — copy the rest of your original code here unchanged
-
+# (The rest of your charts and leaderboards - copy exactly as in your last code)
 # State map
 st.subheader("Hometown Map")
 if not filtered.empty:
@@ -210,6 +200,8 @@ if not filtered.empty:
                             scope='usa', color_continuous_scale='Reds', title='Hot Zones by State')
     fig_map.update_layout(paper_bgcolor='#0E1117', plot_bgcolor='#0E1117', font_color='white', geo_bgcolor='#0E1117')
     st.plotly_chart(fig_map, use_container_width=True, config={'displayModeBar': False})
+
+# ... (all the rest of your code exactly as before)
 
 # Players by State — Top States descending, schools sorted, % next to state
 st.subheader("Players by State")
