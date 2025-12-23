@@ -5,29 +5,50 @@ import numpy as np
 
 st.title("College Baseball Roster Analysis - ALL LEVELS")
 
-# Blue theme for the sidebar filters
-st.set_page_config(page_title="College Baseball - ALL LEVELS", layout="wide")
-st.markdown("""
-    <style>
-    section[data-testid="stSidebar"] {
-        background-color: #0E1117;
-        border-right: 2px solid #1E40AF;  /* Blue accent border */
-    }
-    .css-1d391kg {  /* Sidebar text/labels */
-        color: white;
-    }
-    .stMultiSelect > div > div {
-        background-color: #1E40AF;  /* Blue background for multiselect boxes */
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-
 # Reset button
 st.sidebar.header("Filters")
 if st.sidebar.button("Reset All Filters"):
     st.session_state.clear()
     st.rerun()
+
+# Custom CSS to change all red accents in the sidebar to blue
+st.markdown("""
+    <style>
+    /* Primary blue theme for sidebar accents */
+    section[data-testid="stSidebar"] {
+        background-color: #0E1117;
+    }
+    
+    /* Buttons (Reset All Filters) */
+    div.stButton > button {
+        background-color: #1E40AF !important;
+        color: white !important;
+        border: none !important;
+    }
+    div.stButton > button:hover {
+        background-color: #2563EB !important;
+    }
+    
+    /* Slider track and handle (Year Range, etc.) */
+    .stSlider > div > div > div > div {
+        background: #3B82F6 !important;  /* Blue fill */
+    }
+    .stSlider > div > div > div[role="slider"] {
+        background-color: #3B82F6 !important;
+        border-color: #2563EB !important;
+    }
+    
+    /* Multiselect selected tags (Pitcher, Hitter, NESCAC, etc.) */
+    .stMultiSelect [data-baseweb="tag"] {
+        background-color: #3B82F6 !important;
+    }
+    
+    /* Radio buttons selected (All/Top 60 Academic) */
+    [data-testid="stVerticalBlock"] [kind="primary"][aria-selected="true"] {
+        background-color: #3B82F6 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 @st.cache_data
 def load_data():
@@ -103,38 +124,31 @@ data = load_data()
 # Filters
 year_filter = st.sidebar.slider("Year Range", int(data['year'].min()), int(data['year'].max()), (2022, int(data['year'].max())), key="year")
 role_filter = st.sidebar.multiselect("Role", ['Pitcher','Hitter'], default=['Pitcher','Hitter'], key="role")
-
 # Good Players Only toggle + description
 good_players_only = st.sidebar.checkbox("Good Players Only", key="good_players")
 if good_players_only:
     st.sidebar.caption("Pitchers: IP > 30, WHIP < 1.35 & Hitters: T90/PA > .550")
-    
+   
 league_filter = st.sidebar.multiselect("Conference", sorted(data['LeagueAbbr'].unique()), key="league")
 conference_type_filter = st.sidebar.multiselect("Conference Type", options=['Power Conference', 'Mid Major', 'Low Major'], key="conference_type")
-
 # NEW: Level filter - right under Conference Type
 level_options = sorted([x for x in data['Level'].astype(str).unique() if x not in ['nan', 'None', '']])
 level_filter = st.sidebar.multiselect("Level", options=level_options, key="level")
-
 academic_school_filter = st.sidebar.radio("School Academic Level", ["All", "Top 60 Academic"], key="academic_school")
 team_filter = st.sidebar.multiselect("Team", sorted(data['teamName'].unique()), key="team")
 state_filter = st.sidebar.multiselect("State", sorted(data['state'].unique()), key="state")
 region_filter = st.sidebar.multiselect("Region", sorted(data['region'].unique()), key="region")
-
 min_games = st.sidebar.slider("Minimum Games Played", 0, int(data['G'].max()), 5, key="min_games")
 position_filter = st.sidebar.multiselect("Position", options=sorted(data['posit'].dropna().unique()), key="posit")
 bats_filter = st.sidebar.multiselect("Bats", options=['L', 'R', 'S'], key="bats")
 throws_filter = st.sidebar.multiselect("Throws", options=['L', 'R'], key="throws")
-
 draft_round_range = st.sidebar.slider("Draft Round Range", 0, 70, (0,70), key="draft_round")
-
 available_stats = ['ERA','OPS','W','L','SO','BB','HR','RBI','SB','CS','Bavg','Slg','obp','WHIP','IP','H','R','ER','G','GS','T90s','T90/PA']
 stat1 = st.sidebar.selectbox("Custom Stat Filter 1", ['None']+available_stats, key="stat1")
 if stat1 != 'None':
     direction1 = st.sidebar.radio(f"{stat1} comparison", ["Greater than or equal to", "Less than or equal to"], key="dir1")
     step1 = 0.1 if stat1 in ['ERA','OPS','Bavg','Slg','obp','WHIP','T90/PA'] else 1.0
     value1 = st.sidebar.number_input(f"{stat1} value", value=0.0, step=step1, key="val1")
-
 stat2 = 'None'
 if stat1 != 'None':
     remaining = [s for s in available_stats if s != stat1]
@@ -143,7 +157,6 @@ if stat2 != 'None':
     direction2 = st.sidebar.radio(f"{stat2} comparison", ["Greater than or equal to", "Less than or equal to"], key="dir2")
     step2 = 0.1 if stat2 in ['ERA','OPS','Bavg','Slg','obp','WHIP','T90/PA'] else 1.0
     value2 = st.sidebar.number_input(f"{stat2} value", value=0.0, step=step2, key="val2")
-
 name_search = st.sidebar.text_input("Search Player Name", key="name_search")
 
 # Base filtering
@@ -202,6 +215,9 @@ st.download_button("Export Filtered Data as CSV", data=csv, file_name='college_b
 
 st.subheader(f"Filtered Players – {len(filtered):,} rows")
 st.dataframe(filtered[cols] if cols else filtered.head(100), use_container_width=True, hide_index=True)
+
+# The rest of your code (maps, charts, leaderboards) remains unchanged...
+# (Everything from "# State map" onward is exactly the same as your current version)
 
 # State map
 st.subheader("Hometown Map")
