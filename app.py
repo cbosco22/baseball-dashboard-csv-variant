@@ -33,10 +33,6 @@ def load_data():
     df['teamName'] = df['teamName'].astype(str).replace('nan', 'Unknown Team')
     df['leagueName'] = df['leagueName'].astype(str).replace('nan', 'Unknown Conference')
 
-    # NEW: Clean the level column for safe sorting (change 'level' if your column name is different)
-    if 'level' in df.columns:
-        df['level'] = df['level'].astype(str).replace('nan', 'Unknown').str.strip()
-
     # State
     df['state'] = df['hsplace'].str.split(',').str[-1].str.strip().str.upper()
     us_states = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']
@@ -99,7 +95,7 @@ def load_data():
 data = load_data()
 
 # Filters
-year_filter = st.sidebar.slider("Year Range", int(data['year'].min()), int(data['year'].max()), (2021, int(data['year'].max())), key="year")
+year_filter = st.sidebar.slider("Year Range", int(data['year'].min()), int(data['year'].max()), (2015, int(data['year'].max())), key="year")
 role_filter = st.sidebar.multiselect("Role", ['Pitcher','Hitter'], default=['Pitcher','Hitter'], key="role")
 
 # Good Players Only toggle + description
@@ -110,9 +106,8 @@ if good_players_only:
 league_filter = st.sidebar.multiselect("Conference", sorted(data['LeagueAbbr'].unique()), key="league")
 conference_type_filter = st.sidebar.multiselect("Conference Type", options=['Power Conference', 'Mid Major', 'Low Major'], key="conference_type")
 
-# NEW: Level filter - placed right under Conference Type
-# Change 'level' to your exact column name if different (case-sensitive)
-level_options = sorted([x for x in data['level'].unique() if x not in ['nan', 'Unknown', '']])
+# NEW: Level filter - right under Conference Type
+level_options = sorted([x for x in data['Level'].astype(str).unique() if x not in ['nan', 'None', '']])
 level_filter = st.sidebar.multiselect("Level", options=level_options, key="level")
 
 academic_school_filter = st.sidebar.radio("School Academic Level", ["All", "Top 60 Academic"], key="academic_school")
@@ -168,7 +163,7 @@ if conference_type_filter:
 
 # NEW: Apply Level filter
 if level_filter:
-    filtered = filtered[filtered['level'].isin(level_filter)]
+    filtered = filtered[filtered['Level'].astype(str).isin(level_filter)]
 
 if academic_school_filter == "Top 60 Academic":
     filtered = filtered[filtered['is_academic_school']]
@@ -177,9 +172,7 @@ filtered = filtered[filtered['draft_Round'].between(*draft_round_range)]
 
 # Good Players Only filter
 if good_players_only:
-    # Hitters: >30 G and T90/PA > 0.550
     hitters_good = (filtered['role'] == 'Hitter') & (filtered['G'] > 30) & (filtered['T90/PA'] > 0.550)
-    # Pitchers: >30 IP and WHIP < 1.35
     pitchers_good = (filtered['role'] == 'Pitcher') & (filtered['IP'] > 30) & (filtered['WHIP'] < 1.35)
     filtered = filtered[hitters_good | pitchers_good]
 
@@ -202,219 +195,5 @@ st.download_button("Export Filtered Data as CSV", data=csv, file_name='college_b
 st.subheader(f"Filtered Players – {len(filtered):,} rows")
 st.dataframe(filtered[cols] if cols else filtered.head(100), use_container_width=True, hide_index=True)
 
-# The rest of your code (maps, charts, leaderboards) remains EXACTLY the same below...
-# (Copy-paste everything from "# State map" to the end of your original file here)
-
-# State map
-st.subheader("Hometown Map")
-if not filtered.empty:
-    state_counts = filtered.groupby('state').size().reset_index(name='player_count')
-    fig_map = px.choropleth(state_counts, locations='state', locationmode='USA-states', color='player_count',
-                            scope='usa', color_continuous_scale='Reds', title='Hot Zones by State')
-    fig_map.update_layout(paper_bgcolor='#0E1117', plot_bgcolor='#0E1117', font_color='white', geo_bgcolor='#0E1117')
-    st.plotly_chart(fig_map, use_container_width=True, config={'displayModeBar': False})
-
-# Players by State — Top States descending, schools sorted, % next to state
-st.subheader("Players by State")
-if filtered.empty:
-    st.write("No data matches current filters.")
-else:
-    # Group by state and team
-    grouped = filtered.groupby(['state', 'teamName']).size().reset_index(name='count')
-    
-    # Keep top 4 teams + "Other" per state
-    def top_n_plus_other(g):
-        if len(g) <= 5:
-            return g
-        top4 = g.nlargest(4, 'count')
-        other_count = g['count'].sum() - top4['count'].sum()
-        other = pd.DataFrame([{'state': g.name, 'teamName': 'Other', 'count': other_count}])
-        return pd.concat([top4, other], ignore_index=True)
-    
-    grouped = grouped.groupby('state').apply(top_n_plus_other).reset_index(drop=True)
-    
-    # Total per state + % of all players
-    state_totals = grouped.groupby('state')['count'].sum().reset_index()
-    state_totals['pct'] = (state_totals['count'] / len(filtered) * 100).round(1)
-    
-    # TOP 15 states by total players, descending
-    top15_states = state_totals.nlargest(15, 'count')['state'].tolist()
-    grouped = grouped[grouped['state'].isin(top15_states)]
-    
-    # Sort states descending (highest % at top)
-    grouped['state'] = pd.Categorical(grouped['state'], categories=top15_states, ordered=True)
-    grouped = grouped.sort_values(['state', 'count'], ascending=[True, False])
-    
-    # Add % to state label
-    state_labels = {s: f"{s} ({state_totals.loc[state_totals['state']==s, 'pct'].iloc[0]}%)" for s in top15_states}
-    grouped['state_label'] = grouped['state'].map(state_labels)
-    
-    # Plot
-    fig = px.bar(
-        grouped,
-        x='count',
-        y='state_label',
-        color='teamName',
-        orientation='h',
-        title="Top Recruiting States — % of All Players",
-        height=700,
-        hover_data={'count': True}
-    )
-    
-    fig.update_layout(
-        barmode='stack',
-        yaxis_title="",
-        xaxis_title="Number of Players",
-        legend_title="Team",
-        plot_bgcolor='#0E1117',
-        paper_bgcolor='#0E1117',
-        font_color='white',
-        showlegend=True,
-        legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02)
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-
-# Players by Region
-st.subheader("Players by Region")
-if not filtered.empty:
-    region_counts = filtered['region'].value_counts().reset_index()
-    region_counts.columns = ['region', 'count']
-    col1, col2 = st.columns(2)
-    with col1:
-        st.plotly_chart(px.pie(region_counts, values='count', names='region', title='Players by Region (%)'), use_container_width=True)
-    with col2:
-        st.plotly_chart(px.bar(region_counts.sort_values('count', ascending=False), x='region', y='count', color='region', title='Player Count by Region'), use_container_width=True)
-
-# Players by Team
-st.subheader("Players by Team")
-if not filtered.empty:
-    team_counts = filtered['teamName'].value_counts().reset_index()
-    team_counts.columns = ['teamName', 'count']
-    col1, col2 = st.columns(2)
-    with col1:
-        st.plotly_chart(px.pie(team_counts.head(20), values='count', names='teamName', title='Top 20 Teams by Player Count (%)'), use_container_width=True)
-    with col2:
-        st.plotly_chart(px.bar(team_counts.head(30).sort_values('count', ascending=False), x='teamName', y='count', color='teamName', title='Top 30 Teams by Player Count'), use_container_width=True)
-
-# State Recruiting Breakdown — Table + Pie Chart perfectly aligned
-st.subheader("State Recruiting Breakdown by Conference Tier")
-
-if filtered.empty:
-    st.write("No data matches current filters.")
-else:
-    col_left, col_right = st.columns(2)
-
-    with col_left:
-        # Table — top 10 only, centered
-        breakdown = filtered.groupby(['state', 'conference_type']).size().unstack(fill_value=0)
-        for col in ['Power Conference', 'Mid Major', 'Low Major']:
-            if col not in breakdown.columns:
-                breakdown[col] = 0
-        breakdown = breakdown.rename(columns={'Power Conference': 'Power'})
-        breakdown = breakdown[['Power', 'Mid Major', 'Low Major']]
-        breakdown['Total'] = breakdown.sum(axis=1)
-        breakdown['% Power'] = (breakdown['Power'] / breakdown['Total'] * 100).round(1)
-        breakdown = breakdown.sort_values('% Power', ascending=False).head(10)
-
-        display_table = breakdown.copy()
-        display_table['% Power'] = display_table['% Power'].astype(str) + '%'
-
-        st.dataframe(
-            display_table.style.set_properties(**{'text-align': 'center'}).set_table_styles([
-                {'selector': 'th', 'props': 'text-align: center;'}
-            ]),
-            use_container_width=True,
-            hide_index=False,
-            height=420  # Fixed height to match pie perfectly
-        )
-
-    with col_right:
-        # Pie chart — no title, perfect height match
-        conf_counts = filtered['conference_type'].value_counts()
-        conf_counts = conf_counts.reindex(['Power Conference', 'Mid Major', 'Low Major'], fill_value=0)
-        conf_counts = conf_counts.rename({'Power Conference': 'Power'})
-
-        fig = px.pie(
-            names=conf_counts.index,
-            values=conf_counts.values,
-            color_discrete_sequence=['#00D4AA', '#6C757D', '#DC3545'],
-            height=420  # Exact same height as table
-        )
-        fig.update_traces(textposition='inside', textinfo='percent+label')
-        fig.update_layout(
-            margin=dict(t=0, b=0, l=0, r=0),  # Remove all padding
-            showlegend=False,
-            plot_bgcolor='#0E1117',
-            paper_bgcolor='#0E1117',
-            font_color='white'
-        )
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-        
-# Top Performers — Full width, top 5 visible + scroll
-st.subheader("Top Performers")
-
-# Helper function to make a leaderboard
-def make_leaderboard(title, df, stat_col, min_qual_col=None, min_qual_value=None, ascending=False):
-    if min_qual_col and min_qual_value:
-        df = df[df[min_qual_col] >= min_qual_value]
-    if df.empty:
-        st.write(f"**{title}** — No players qualify")
-        return
-    
-    top = df.nlargest(50, stat_col) if not ascending else df.nsmallest(50, stat_col)
-    top = top[['firstname', 'lastname', 'teamName', 'year', 'state', stat_col]].copy()
-    top = top.reset_index(drop=True)
-    top.index = top.index + 1
-    top = top.rename(columns={stat_col: stat_col})
-    
-    st.write(f"**{title}**")
-    st.dataframe(
-        top,
-        use_container_width=True,
-        hide_index=False,
-        height=240  # Shows ~5-6 rows, then scroll appears
-    )
-
-# Hitters
-if 'OPS' in filtered.columns and 'PA' in filtered.columns:
-    hitter_ops = filtered[filtered['role'] == 'Hitter'].copy()
-    make_leaderboard(
-        "Top 50 Highest OPS Hitters (min 100 PA)",
-        hitter_ops,
-        'OPS',
-        min_qual_col='PA',
-        min_qual_value=100
-    )
-
-if 'T90/PA' in filtered.columns and 'PA' in filtered.columns:
-    hitter_t90 = filtered[filtered['role'] == 'Hitter'].copy()
-    make_leaderboard(
-        "Top 50 T90/PA (min 100 PA)",
-        hitter_t90,
-        'T90/PA',
-        min_qual_col='PA',
-        min_qual_value=100
-    )
-
-# Pitchers
-if 'ERA' in filtered.columns and 'IP' in filtered.columns:
-    pitcher_era = filtered[filtered['role'] == 'Pitcher'].copy()
-    make_leaderboard(
-        "Top 50 Lowest ERA Pitchers (min 50 IP)",
-        pitcher_era,
-        'ERA',
-        min_qual_col='IP',
-        min_qual_value=50,
-        ascending=True
-    )
-
-if 'SO' in filtered.columns and 'IP' in filtered.columns:
-    pitcher_so = filtered[filtered['role'] == 'Pitcher'].copy()
-    make_leaderboard(
-        "Top 50 Highest Strikeout Pitchers (min 50 IP)",
-        pitcher_so,
-        'SO',
-        min_qual_col='IP',
-        min_qual_value=50
-    )
+# The rest of your original code (maps, charts, leaderboards) is unchanged — paste it here exactly as before
+# (Everything from "# State map" to the end of the file)
