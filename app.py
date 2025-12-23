@@ -18,31 +18,25 @@ def load_data():
         pitchers = pd.read_csv('novick_college_pitching_history_all.csv', encoding='latin1', low_memory=False)
     except UnicodeDecodeError:
         pitchers = pd.read_csv('novick_college_pitching_history_all.csv', encoding='cp1252', low_memory=False)
-
     try:
         hitters = pd.read_csv('novick_college_batting_history_all.csv', encoding='latin1', low_memory=False)
     except UnicodeDecodeError:
         hitters = pd.read_csv('novick_college_batting_history_all.csv', encoding='cp1252', low_memory=False)
-
     pitchers['role'] = 'Pitcher'
     hitters['role'] = 'Hitter'
     df = pd.concat([pitchers, hitters], ignore_index=True, sort=False)
-
     # Critical fixes for sorting/multiselect
-    df['LeagueAbbr'] = df['LeagueAbbr'].astype(str).replace('nan', '')  # Fix mixed types + NaN
+    df['LeagueAbbr'] = df['LeagueAbbr'].astype(str).replace('nan', '') # Fix mixed types + NaN
     df['teamName'] = df['teamName'].astype(str).replace('nan', 'Unknown Team')
     df['leagueName'] = df['leagueName'].astype(str).replace('nan', 'Unknown Conference')
-
     # State
     df['state'] = df['hsplace'].str.split(',').str[-1].str.strip().str.upper()
     us_states = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY']
     df = df[df['state'].isin(us_states)]
-
     # Draft cleanup
     df['draft_year'] = pd.to_numeric(df['draft_year'], errors='coerce')
     df['draft_Round'] = pd.to_numeric(df['draft_Round'], errors='coerce').fillna(0)
     df['is_drafted'] = df['draft_year'].notna()
-
     # Region mapping (unchanged)
     region_map = {
         'East': ['KY','OH','PA','TN','WV'],
@@ -59,7 +53,6 @@ def load_data():
                 return r
         return 'Other'
     df['region'] = df['state'].apply(get_region)
-
     # T90s and T90/PA — only for hitters
     df['T90s'] = np.nan
     df['T90/PA'] = np.nan
@@ -70,26 +63,21 @@ def load_data():
         df.loc[hitter_mask, 'T90s'] = (df.loc[hitter_mask, 'TotalBases'] + df.loc[hitter_mask, 'SB'].fillna(0) + df.loc[hitter_mask, 'BB'].fillna(0) + df.loc[hitter_mask, 'HBP'].fillna(0))
         df.loc[hitter_mask, 'PA'] = (df.loc[hitter_mask, 'AB'].fillna(0) + df.loc[hitter_mask, 'BB'].fillna(0) + df.loc[hitter_mask, 'HBP'].fillna(0) + df.loc[hitter_mask, 'SF'].fillna(0) + df.loc[hitter_mask, 'SH'].fillna(0))
         df.loc[hitter_mask, 'T90/PA'] = df.loc[hitter_mask, 'T90s'] / df.loc[hitter_mask, 'PA'].replace(0, np.nan)
-
     # Clean Bats/Throws/Position
     df['Bats'] = df['Bats'].str.upper().replace('B', 'S')
     df['Throws'] = df['Throws'].str.upper()
     df['posit'] = df['posit'].str.upper().str.strip()
-
     # Miami → Miami-Ohio fix
     df.loc[(df['teamName'] == 'Miami') & (df['LeagueAbbr'] == 'MAC'), 'teamName'] = 'Miami-Ohio'
-
     # Conference type
     power = ['Atlantic Coast Conference','Big 12 Conference','Big Ten Conference','Pacific-10 Conference','Pacific-12 Conference','Southeastern Conference']
     low_major = ['Big South Conference','Patriot League','Ivy League','America East Conference','Metro Atlantic Athletic Conference','Northeast Conference','Southwest Athletic Conference','Horizon League']
     df['conference_type'] = 'Mid Major'
     df.loc[df['leagueName'].isin(power), 'conference_type'] = 'Power Conference'
     df.loc[df['leagueName'].isin(low_major), 'conference_type'] = 'Low Major'
-
     # Academic School flag
     academic_schools = ['Air Force','Army','Boston College','Brown','Bryant','Bryant University','Bucknell','California','Columbia','Cornell','Dartmouth','Davidson','Davidson College','Duke','Fordham','Georgetown','Georgia Tech','Harvard','Holy Cross','Lafayette','Lafayette College','Lehigh','Maryland','Massachusetts','Michigan','Navy','New Jersey Tech','North Carolina','Northeastern','Northwestern','Notre Dame','Penn','Pennsylvania','Princeton','Purdue','Rice','Richmond','Stanford','Tulane','UC Davis','UC Irvine','UC San Diego','UC Santa Barbara','UCLA','USC','Vanderbilt','Villanova','Virginia','Wake Forest','Washington','William and Mary','Wofford','Yale']
     df['is_academic_school'] = df['teamName'].isin(academic_schools)
-
     return df
 
 data = load_data()
@@ -214,7 +202,7 @@ if filtered.empty:
 else:
     # Group by state and team
     grouped = filtered.groupby(['state', 'teamName']).size().reset_index(name='count')
-    
+   
     # Keep top 4 teams + "Other" per state
     def top_n_plus_other(g):
         if len(g) <= 5:
@@ -223,25 +211,25 @@ else:
         other_count = g['count'].sum() - top4['count'].sum()
         other = pd.DataFrame([{'state': g.name, 'teamName': 'Other', 'count': other_count}])
         return pd.concat([top4, other], ignore_index=True)
-    
+   
     grouped = grouped.groupby('state').apply(top_n_plus_other).reset_index(drop=True)
-    
+   
     # Total per state + % of all players
     state_totals = grouped.groupby('state')['count'].sum().reset_index()
     state_totals['pct'] = (state_totals['count'] / len(filtered) * 100).round(1)
-    
+   
     # TOP 15 states by total players, descending
     top15_states = state_totals.nlargest(15, 'count')['state'].tolist()
     grouped = grouped[grouped['state'].isin(top15_states)]
-    
+   
     # Sort states descending (highest % at top)
     grouped['state'] = pd.Categorical(grouped['state'], categories=top15_states, ordered=True)
     grouped = grouped.sort_values(['state', 'count'], ascending=[True, False])
-    
+   
     # Add % to state label
     state_labels = {s: f"{s} ({state_totals.loc[state_totals['state']==s, 'pct'].iloc[0]}%)" for s in top15_states}
     grouped['state_label'] = grouped['state'].map(state_labels)
-    
+   
     # Plot
     fig = px.bar(
         grouped,
@@ -253,7 +241,7 @@ else:
         height=700,
         hover_data={'count': True}
     )
-    
+   
     fig.update_layout(
         barmode='stack',
         yaxis_title="",
@@ -265,7 +253,7 @@ else:
         showlegend=True,
         legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02)
     )
-    
+   
     st.plotly_chart(fig, use_container_width=True)
 
 # Players by Region
